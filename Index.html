@@ -4,7 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Motoland Service</title>
-
+<link rel="manifest" href="manifest.json">
 <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 
 <style>
@@ -131,9 +131,16 @@ input,select,button,textarea{width:100%;padding:10px;margin-top:5px;border-radiu
 </div>
 
 <script>
-const URL = "https://script.google.com/macros/s/AKfycbxFWEud4Ii35PSNqWf5YvLJRE_sWva1lgtZmCoHR_O9BsEtmoDuWS7ePdXaun4e62Gv/exec";
+const URL = "https://script.google.com/macros/s/AKfycbzp-g7dz1DSd61NyylmVI1-Y7vDlIudTcgyX3lNxkSg8itaiuuoGFHPllvOz4Tu3jOR/exec";
 
-// NAVEGACIÓN
+let grafica;
+
+// errores visibles
+window.onerror = function(msg){
+  alert("Error: " + msg);
+}
+
+// navegación
 function cambiar(id){
   document.querySelectorAll(".section").forEach(s=>s.classList.remove("active"));
   document.getElementById(id).classList.add("active");
@@ -143,6 +150,7 @@ function cambiar(id){
 function guardarProducto(){
   fetch(URL,{
     method:"POST",
+    headers:{ "Content-Type":"application/json" },
     body: JSON.stringify({
       tipo:"inventario",
       id:idInv.value,
@@ -155,31 +163,57 @@ function guardarProducto(){
     })
   });
   alert("Producto guardado ✔");
+  cargarTodo();
+}
+
+// EDITAR PRODUCTO
+function editarProducto(nombre){
+  let nuevoPrecio = prompt("Nuevo precio:");
+  fetch(URL,{
+    method:"POST",
+    headers:{ "Content-Type":"application/json" },
+    body: JSON.stringify({
+      tipo:"editarProducto",
+      producto:nombre,
+      precio:nuevoPrecio
+    })
+  });
+  cargarTodo();
+}
+
+// ELIMINAR PRODUCTO
+function eliminarProducto(nombre){
+  fetch(URL,{
+    method:"POST",
+    headers:{ "Content-Type":"application/json" },
+    body: JSON.stringify({
+      tipo:"eliminarProducto",
+      producto:nombre
+    })
+  });
+  alert("Eliminado");
+  cargarTodo();
 }
 
 // VENTAS
 async function venderProducto(){
-
   const res = await fetch(URL);
   const data = await res.json();
 
   let productos = data.inventario.slice(1);
   let prod = productos.find(p=>p[3]==ventaProd.value);
 
+  if(!prod){ alert("Producto no encontrado"); return; }
+
   let cantidad = Number(ventaCant.value);
   let precio = Number(precioVenta.value);
-
-  if(!prod){
-    alert("Producto no encontrado");
-    return;
-  }
 
   let total = cantidad * precio;
   let ganancia = (precio - Number(prod[6])) * cantidad;
 
-  // guardar venta
   await fetch(URL,{
     method:"POST",
+    headers:{ "Content-Type":"application/json" },
     body: JSON.stringify({
       tipo:"ventas",
       producto:prod[3],
@@ -191,9 +225,9 @@ async function venderProducto(){
     })
   });
 
-  // actualizar stock
   await fetch(URL,{
     method:"POST",
+    headers:{ "Content-Type":"application/json" },
     body: JSON.stringify({
       tipo:"actualizarStock",
       producto:prod[3],
@@ -205,68 +239,8 @@ async function venderProducto(){
   cargarTodo();
 }
 
-// MANTENIMIENTO
-function guardarMantenimiento(){
-  fetch(URL,{
-    method:"POST",
-    body: JSON.stringify({
-      tipo:"mantenimiento",
-      id:idM.value,
-      cliente:clienteM.value,
-      contacto:contactoM.value,
-      moto:motoM.value,
-      modelo:modeloM.value,
-      placa:placaM.value,
-      servicio:servicioM.value,
-      producto:productoM.value,
-      cantidad:cantidadM.value,
-      valor:valorM.value,
-      total:valorM.value,
-      estado:estadoManual.value,
-      fecha:new Date()
-    })
-  });
-
-  alert("Mantenimiento guardado ✔");
-  cargarTodo();
-}
-
-// BUSCAR
-async function buscarMantenimiento(){
-  const res = await fetch(URL);
-  const data = await res.json();
-
-  let mant = data.mantenimientos.slice(1);
-  let filtro = buscarPlaca.value.toLowerCase();
-
-  listaMantenimientos.innerHTML="";
-
-  mant.forEach((m,i)=>{
-    if(m[6].toLowerCase().includes(filtro)){
-      listaMantenimientos.innerHTML += `<option value="${i}">${m[6]} - ${m[2]}</option>`;
-    }
-  });
-}
-
-// ACTUALIZAR
-function actualizarMantenimiento(){
-  fetch(URL,{
-    method:"POST",
-    body: JSON.stringify({
-      tipo:"actualizarMantenimiento",
-      fila: Number(listaMantenimientos.value)+2,
-      estado: estadoUpdate.value,
-      observaciones: observaciones.value
-    })
-  });
-
-  alert("Actualizado ✔");
-  cargarTodo();
-}
-
-// DASHBOARD
+// DASHBOARD + INVENTARIO
 async function cargarTodo(){
-
   const res = await fetch(URL);
   const data = await res.json();
 
@@ -286,21 +260,54 @@ async function cargarTodo(){
   let mant = data.mantenimientos.slice(1);
   let gas=0;
   mant.forEach(m=> gas += Number(m[10])||0);
-
   gastos.innerText="$"+gas;
 
-  // inventario dropdown
+  // INVENTARIO + ALERTA
   let productos = data.inventario.slice(1);
   ventaProd.innerHTML="";
+  
+  let lista = "";
+
   productos.forEach(p=>{
     ventaProd.innerHTML += `<option>${p[3]}</option>`;
+
+    let alerta = p[5] < 5 ? "🔴 BAJO STOCK" : "🟢 OK";
+
+    lista += `
+    <div class="card">
+      <b>${p[3]}</b> (${p[4]})<br>
+      Stock: ${p[5]} - ${alerta}<br>
+      💲 ${p[7]}
+      <br><br>
+      <button onclick="editarProducto('${p[3]}')">✏️ Editar</button>
+      <button onclick="eliminarProducto('${p[3]}')">🗑️ Eliminar</button>
+    </div>
+    `;
+  });
+
+  document.getElementById("inventario").innerHTML += lista;
+
+  // GRAFICA
+  let labels = ventas.map(v=>v[3]);
+  let datos = ventas.map(v=>Number(v[6]));
+
+  if(grafica) grafica.destroy();
+
+  grafica = new Chart(document.getElementById("grafica"),{
+    type:"bar",
+    data:{
+      labels: labels,
+      datasets:[{
+        label:"Ventas",
+        data: datos
+      }]
+    }
   });
 }
 
-// AUTO REFRESH
-setInterval(cargarTodo,3000);
+// REFRESH
+setInterval(cargarTodo,4000);
 cargarTodo();
 </script>
-
 </body>
 </html>
