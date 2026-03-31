@@ -107,7 +107,6 @@ input,select,button,textarea{width:100%;padding:10px;margin-top:5px;border-radiu
 </select>
 
 <button onclick="guardarMantenimiento()">Guardar</button>
-
 <hr>
 
 <h3>Buscar / Actualizar</h3>
@@ -308,6 +307,33 @@ async function cargarTodo(){
 // REFRESH
 setInterval(cargarTodo,4000);
 cargarTodo();
+
+function guardarMantenimiento(){
+  fetch(URL,{
+    method:"POST",
+    headers:{ "Content-Type":"application/json" },
+    body: JSON.stringify({
+      tipo:"mantenimiento",
+      id:idM.value,
+      cliente:clienteM.value,
+      contacto:contactoM.value,
+      moto:motoM.value,
+      modelo:modeloM.value,
+      placa:placaM.value,
+      servicio:servicioM.value,
+      producto:productoM.value,
+      cantidad:cantidadM.value,
+      valor:valorM.value,
+      total:valorM.value,
+      estado:estadoManual.value,
+      fecha:new Date()
+    })
+  });
+
+  alert("Mantenimiento guardado ✔");
+  cargarTodo();
+}   
+
 </script>
 </body>
 </html>
